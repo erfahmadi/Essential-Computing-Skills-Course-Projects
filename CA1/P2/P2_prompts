@@ -1,0 +1,752 @@
+i i added a user in ubuntu terminal with this command:
+sudo adduser admin_user
+
+i want to let this user to use commands like sudo. so i should add this user to sudo group. how should i do it
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to install paramiko library in ubuntu to use python and connect to server via ssh
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to install psutil library in ubuntu to use python to see system condition
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to delete keys of users from serverhow to delete keys of users from server
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+now how to create public key from a client to put on server. i want to run a python code as the only thing this client can do in server
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+i want to ssh with this command: ssh user@server_ip
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+now i want to apply this restriction to the key in server:
+/opt/erfan_restrictions/restricted_shell.sh
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+how can i backup or update something in server via ssh from client
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+make a python file in terminal
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to clear a file when opening it with nano?
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+i want to add a new command to the terminal that runs a python file when is executed. what should i do
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+now i have this public keys for ssh in the server:
+
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ27xjtXlGmSV5H3M/NJjijpJS+sKlE/SHbokEKqIR0E erfahmadi03@gmail.com
+
+for first key, i want to allow its user to be able to run just one command and also exit command when connected to this server via ssh. how should i update the key?
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+command="/path/to/allowed_command",no-port-forwarding,no-agent-forwarding,no-pty,no-X11-forwarding,no-user-rc ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ27xjtXlGmSV5H3M/NJjijpJS+sKlE/SHbokEKqIR0E erfahmadi03@gmail.com
+here when i ssh to the server, it just shows the result and exits and doesn't remain in the server. i want it to connect to that server and run the specefied command to see the results and also for other commands, it should show errors
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+do it without making restricted_shell.sh file and just editing the key
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+it still is like this:
+normal_user@erfan-virtual-machine:~$ ssh erfan@192.168.38.130
+PTY allocation request failed on channel 0
+
+=== erfan Server Health ===
+• CPU: 0.0% | Cores: 4
+• RAM: 79.9% used
+• Disk: 85.6% full
+
+Session remains open...
+Connection to 192.168.38.130 closed.
+normal_user@erfan-virtual-machine:~$
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+i just want to open connection to the server like normal connection. then when i run allowed command it should show the result and when i run other commands it should show erro
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+normal_user@erfan-virtual-machine:~$ ssh erfan@192.168.38.130
+PTY allocation request failed on channel 0
+ls
+Desktop
+Documents
+Downloads
+go
+Music
+Pictures
+Public
+snap
+Templates
+Videos
+health
+
+=== erfan Server Health ===
+• CPU: 0.0% | Cores: 4
+• RAM: 80.5% used
+• Disk: 85.6% full
+
+other commands are allowed. i don't want it
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+command="/bin/myscript.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty
+ssh-dss AAAAB3....o9M9qz4xqGCqGXoJw= user@host
+with this approach, i just allow one command via ssh. what should i do to allow for example two commands?
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+command="case \"$SSH_ORIGINAL_COMMAND\" in
+\"cmd1\"|\"cmd2\") exec $SSH_ORIGINAL_COMMAND;;
+\"\") echo \"Allowed commands: cmd1, cmd2\"; exit 0;;
+*) echo \"ERROR: Only 'cmd1' or 'cmd2' allowed\" >&2; exit 1;;
+esac",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-dss AAAAB3...o9M9qz4xqGCqGXoJw= user@host
+
+what is $SSH_ORIGINAL_COMMAND
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+command="case \"$SSH_ORIGINAL_COMMAND\" in
+\"cmd1\"|\"cmd2\") exec $SSH_ORIGINAL_COMMAND;;
+\"\") echo \"Allowed commands: cmd1, cmd2\"; exit 0;;
+*) echo \"ERROR: Only 'cmd1' or 'cmd2' allowed\" >&2; exit 1;;
+esac",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-dss AAAAB3...o9M9qz4xqGCqGXoJw= user@host
+
+this didn't work. the ssh connection is closed immediately
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+what are the commands for backup and update in command line
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+#!/usr/bin/env python3
+import paramiko
+import getpass
+import sys
+import socket
+import tty
+import termios
+import select
+
+def setup_terminal():
+    """Set up terminal for raw input"""
+    old_attrs = termios.tcgetattr(sys.stdin)
+    tty.setraw(sys.stdin.fileno())
+    return old_attrs
+
+def restore_terminal(old_attrs):
+    """Restore terminal settings"""
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_attrs)
+
+def interactive_shell(channel):
+    """Handle the interactive shell session"""
+    old_attrs = setup_terminal()
+    
+    try:
+        while True:
+            r, w, e = select.select([channel, sys.stdin], [], [])
+            
+            if channel in r:
+                try:
+                    data = channel.recv(1024)
+                    if not data:
+                        break
+                    sys.stdout.write(data.decode())
+                    sys.stdout.flush()
+                except socket.timeout:
+                    continue
+            
+            if sys.stdin in r:
+                char = sys.stdin.read(1)
+                if char == '\x1d':  # Ctrl+] to exit
+                    break
+                channel.send(char)
+    
+    finally:
+        restore_terminal(old_attrs)
+        print("\nConnection closed.")
+
+def main():
+    print("=== Python SSH Client ===")
+    host = input("Server IP/Hostname: ").strip()
+    user = input("Username: ").strip()
+    pwd = getpass.getpass("Password (leave empty for SSH key auth): ") or None
+
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    try:
+        client.connect(
+            hostname=host,
+            username=user,
+            password=pwd,
+            look_for_keys=True,
+            allow_agent=True,
+            timeout=10
+        )
+
+        channel = client.invoke_shell(term='xterm-256color')
+        channel.settimeout(1)
+        
+        print(f"\nConnected to {host}. Press Ctrl+] to exit.\n")
+        interactive_shell(channel)
+
+    except Exception as e:
+        print(f"\nError: {str(e)}")
+    finally:
+        client.close()
+
+if __name__ == "__main__":
+    main()
+
+i want to add these commands to above code:
+Downloading a file from a remote machine:
+
+ftp_client=ssh_client.open_sftp()ftp_client.get(‘remotefileth’,’localfilepath’)ftp_client.close()
+
+Uploading file from local to a remote machine:
+
+ftp_client=ssh.open_sftp()ftp_client.put(‘localfilepath’,remotefilepath’)ftp_client.close()
+
+
+
+do it and also tell me how to run these commands
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+when i press ctrl+B, i see below result with strange spaces:
+=== SFTP File Transfer ===
+1. Download file from remote server
+2. Upload file to remote server
+3. Back to shell
+
+Select option (1-3):
+
+and i also can't write anything else in the terminal and it freezes
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan@erfan-virtual-machine:~$ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+=== SFTP File Transfer ===
+1. Download file from remote server
+2. Upload file to remote server
+3. Back to shell
+
+Select option (1-3): 1
+1
+
+Remote file path: 
+Local save path: /home/erfan/Desktop/ECS/1/ECS-CA1.pdf
+/home/erfan/Desktop/ECS/1/ECS-CA1.pdf
+Download failed: [Errno 13] Permission denied: '/home/erfan/Desktop/ECS/1/ECS-CA1.pdf'
+
+Press Enter to continue...
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+erfan@erfan-virtual-machine:~$
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+=== SFTP File Transfer ===
+1. Download file from remote server
+2. Upload file to remote server
+3. Back to shell
+
+Select option (1-3): 1
+1
+
+Remote file path: /home/erfan/Desktop/console_export
+/home/erfan/Desktop/console_export
+Local save path [/home/admin_user/Downloads/]: 
+
+
+✗ Download failed: [Errno 21] Is a directory: '/home/admin_user/Downloads/'
+
+Press Enter to continue...
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+i want to do it with running this command:
+<Download/Upload>_file client local_path remote_path
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+admin_user@erfan-virtual-machine:~$ python3 ssh_connection.py 
+=== Python SSH Client with File Transfer ===
+Available commands:
+  Download_file local_path remote_path
+  Upload_file local_path remote_path
+
+Server IP/Hostname: 192.168.38.130
+Username: erfan
+Password (leave empty for SSH key auth): 
+
+Connected to 192.168.38.130. Press Ctrl+] to exit.
+Enter Download_file/Upload_file commands at the shell prompt.
+
+ssh> Download_file /home/admin_user/ee /home/erfan/Desktop/console_export
+Downloaded /home/erfan/Desktop/console_export to /home/admin_user/ee
+ssh> Upload_file /home/admin_user/ee /home/erfan/Desktop/ee
+Uploaded /home/admin_user/ee to /home/erfan/Desktop/ee
+ssh> 
+Last login: Wed Apr  9 17:53:49 2025 from 192.168.38.130
+erfan@erfan-virtual-machine:~$ ssh> pwd
+
+erfan@erfan-virtual-machine:~$ ssh> ls
+pwd
+/home/erfan
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+admin_user@erfan-virtual-machine:~$ python3 ssh_connection.py 
+=== Enhanced SSH Client ===
+Special commands:
+  download remote_path local_path - Download file
+  upload local_path remote_path - Upload file
+  exit - Disconnect
+
+Host: 192.168.38.130
+Username: erfan
+Password: 
+
+Connected to 192.168.38.130. Enter commands:
+ssh> Download_file /home/admin_user/eeeee /home/erfan/Desktop/console_export
+bash: Download_file: command not found
+ssh>
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+#!/usr/bin/env python3
+import paramiko
+import getpass
+import sys
+import socket
+import tty
+import termios
+import select
+import os
+from os.path import expanduser, basename, isdir, join
+
+def setup_terminal():
+    """Set up terminal for raw input"""
+    old_attrs = termios.tcgetattr(sys.stdin)
+    tty.setraw(sys.stdin.fileno())
+    return old_attrs
+
+def restore_terminal(old_attrs):
+    """Restore terminal settings"""
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_attrs)
+
+def transfer_file(sftp_client, direction, local_path, remote_path):
+    """Handle file transfers with progress feedback"""
+    try:
+        if direction == "download":
+            local_dir = os.path.dirname(local_path)
+            if local_dir and not os.path.exists(local_dir):
+                os.makedirs(local_dir)
+            sftp_client.get(remote_path, local_path)
+            return f"Downloaded {remote_path} to {local_path}"
+        elif direction == "upload":
+            sftp_client.put(local_path, remote_path)
+            return f"Uploaded {local_path} to {remote_path}"
+    except Exception as e:
+        return f"Transfer failed: {str(e)}"
+
+def execute_command(channel, sftp_client, cmd):
+    """Execute special file transfer commands"""
+    parts = cmd.strip().split()
+    if len(parts) != 3:
+        return "Invalid command format. Use: Download_file local_path remote_path or Upload_file local_path remote_path"
+    
+    action = parts[0].lower()
+    local_path = expanduser(parts[1])
+    remote_path = parts[2]
+    
+    if action == "download_file":
+        return transfer_file(sftp_client, "download", local_path, remote_path)
+    elif action == "upload_file":
+        return transfer_file(sftp_client, "upload", local_path, remote_path)
+    else:
+        return "Unknown command. Use Download_file or Upload_file"
+
+def interactive_shell(channel, sftp_client=None):
+    """Handle the interactive shell session"""
+    old_attrs = setup_terminal()
+    
+    try:
+        while True:
+            r, w, e = select.select([channel, sys.stdin], [], [])
+            
+            if channel in r:
+                try:
+                    data = channel.recv(1024)
+                    if not data:
+                        break
+                    sys.stdout.write(data.decode())
+                    sys.stdout.flush()
+                except socket.timeout:
+                    continue
+            
+            if sys.stdin in r:
+                char = sys.stdin.read(1)
+                if char == '\x1d':  # Ctrl+] to exit
+                    break
+                elif char == '\n':  # Check for complete commands
+                    # Capture the current line to check for transfer commands
+                    # (This part would need more sophisticated line editing)
+                    pass
+                else:
+                    channel.send(char)
+    
+    finally:
+        restore_terminal(old_attrs)
+        print("\nConnection closed.")
+
+def main():
+    print("=== Python SSH Client with File Transfer ===")
+    print("Available commands:")
+    print("  Download_file local_path remote_path")
+    print("  Upload_file local_path remote_path\n")
+    
+    host = input("Server IP/Hostname: ").strip()
+    user = input("Username: ").strip()
+    pwd = getpass.getpass("Password (leave empty for SSH key auth): ") or None
+
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    sftp_client = None
+
+    try:
+        client.connect(
+            hostname=host,
+            username=user,
+            password=pwd,
+            look_for_keys=True,
+            allow_agent=True,
+            timeout=10
+        )
+
+        sftp_client = client.open_sftp()
+        channel = client.invoke_shell(term='xterm-256color')
+        channel.settimeout(1)
+        
+        print(f"\nConnected to {host}. Press Ctrl+] to exit.")
+        print("Enter Download_file/Upload_file commands at the shell prompt.\n")
+        
+        # Alternative approach for command execution
+        while True:
+            cmd = input("ssh> ").strip()
+            if cmd.lower() in ['exit', 'quit']:
+                break
+            elif cmd.startswith(('Download_file ', 'Upload_file ')):
+                if sftp_client:
+                    result = execute_command(None, sftp_client, cmd)
+                    print(result)
+                else:
+                    print("SFTP not available")
+            else:
+                # Send regular command to remote shell
+                channel.send(cmd + '\n')
+                while True:
+                    if channel.recv_ready():
+                        data = channel.recv(1024)
+                        print(data.decode(), end='')
+                    else:
+                        break
+    
+    except Exception as e:
+        print(f"\nError: {str(e)}")
+    finally:
+        if sftp_client:
+            sftp_client.close()
+        client.close()
+
+if __name__ == "__main__":
+    main()
+
+this code has below problem:
+
+admin_user@erfan-virtual-machine:~$ python3 ssh_connection.py 
+=== Python SSH Client with File Transfer ===
+Available commands:
+  Download_file local_path remote_path
+  Upload_file local_path remote_path
+
+Server IP/Hostname: 192.168.38.130
+Username: erfan
+Password (leave empty for SSH key auth): 
+
+Connected to 192.168.38.130. Press Ctrl+] to exit.
+Enter Download_file/Upload_file commands at the shell prompt.
+
+ssh> ls
+Last login: Wed Apr  9 18:15:07 2025 from 192.168.38.130
+erfan@erfan-virtual-machine:~$ ssh> 
+ls
+Desktop    Downloads  Music     Public  Templates
+Documents  go         Pictures  snap    Videos
+erfan@erfan-virtual-machine:~$ ssh> Download_file /home/admin_user/eeeede /home/erfan/Desktop/console_export
+Downloaded /home/erfan/Desktop/console_export to /home/admin_user/eeeede
+ssh> 
+
+it both shows erfan@erfan-virtual-machine:~$ and ssh> in terminal. it should just show erfan@erfan-virtual-machine:~$ 
+it also show the result of a command like ls after two enters
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+#!/bin/bash
+
+# Check if required arguments are provided
+if [ $# -lt 3 ]; then
+  echo "❌ Usage: $0 -d \"/dir1 /dir2\" -i [daily|weekly|monthly] -o /backup/path [-r true|false]"
+  exit 1
+fi
+
+# Parse command-line arguments (now mandatory)
+while getopts ":d:i:o:r:" opt; do
+  case $opt in
+    d) DIRS_TO_BACKUP="$OPTARG" ;;
+    i) RUN_INTERVAL="$OPTARG" ;;
+    o) OUTPUT_DIR="$OPTARG" ;;
+    r) REBOOT_AFTER="${OPTARG:-false}" ;;  # Default: false if -r omitted
+    *) echo "❌ Invalid option: -$OPTARG" >&2
+       exit 1
+  esac
+done
+
+# Validate run interval
+if [[ "$RUN_INTERVAL" != "daily" && "$RUN_INTERVAL" != "weekly" && "$RUN_INTERVAL" != "monthly" ]]; then
+  echo "❌ Invalid run interval: $RUN_INTERVAL (must be daily/weekly/monthly)"
+  exit 1
+fi
+
+# Create backup directory if missing
+mkdir -p "$OUTPUT_DIR"
+
+# Generate backup filename with timestamp
+BACKUP_FILE="$OUTPUT_DIR/backup_$(date +%Y-%m-%d_%H-%M-%S)_$RUN_INTERVAL.tar.gz"
+
+# Perform backup (compressed tar.gz)
+echo "📂 Backing up: $DIRS_TO_BACKUP"
+echo "💾 Saving to: $BACKUP_FILE"
+sudo tar -czvf "$BACKUP_FILE" $DIRS_TO_BACKUP 2>/dev/null
+
+# Verify backup
+if [ -f "$BACKUP_FILE" ]; then
+  echo "✅ Backup successful! Size: $(du -h "$BACKUP_FILE" | cut -f1)"
+else
+  echo "❌ Backup failed!" >&2
+  exit 1
+fi
+
+# Reboot if requested
+if [ "$REBOOT_AFTER" = true ]; then
+  echo "🔄 Rebooting system..."
+  sudo reboot
+fi
+
+here, why backup compressed files are empty
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+sudo ./backup.sh -d "/home/erfan/Desktop/ECS" -i monthly -o /home/erfan/Desktop/backups
+
+so after running this, does it get backup after 30 days again automatically?
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+#!/bin/bash
+
+# Check if required arguments are provided
+if [ $# -lt 3 ]; then
+  echo "❌ Usage: $0 -d \"/dir1 /dir2\" -i [daily|weekly|monthly] -o /backup/path [-r true|false]"
+  exit 1
+fi
+
+# Parse command-line arguments
+while getopts ":d:i:o:r:" opt; do
+  case $opt in
+    d) DIRS_TO_BACKUP="$OPTARG" ;;
+    i) RUN_INTERVAL="$OPTARG" ;;
+    o) OUTPUT_DIR="$OPTARG" ;;
+    r) REBOOT_AFTER="${OPTARG:-false}" ;;
+    *) echo "❌ Invalid option: -$OPTARG" >&2
+       exit 1
+  esac
+done
+
+# Validate run interval
+if [[ "$RUN_INTERVAL" != "daily" && "$RUN_INTERVAL" != "weekly" && "$RUN_INTERVAL" != "monthly" ]]; then
+  echo "❌ Invalid run interval: $RUN_INTERVAL (must be daily/weekly/monthly)"
+  exit 1
+fi
+
+# Create backup directory if missing
+mkdir -p "$OUTPUT_DIR"
+
+# Verify source directories exist
+for dir in $DIRS_TO_BACKUP; do
+  if [ ! -e "$dir" ]; then
+    echo "❌ Path does not exist: $dir"
+    exit 1
+  fi
+done
+
+# Generate backup filename
+BACKUP_FILE="$OUTPUT_DIR/backup_$(date +%Y-%m-%d_%H-%M-%S)_$RUN_INTERVAL.tar.gz"
+
+# Perform backup with proper path handling
+echo "📂 Backing up: $DIRS_TO_BACKUP"
+echo "💾 Saving to: $BACKUP_FILE"
+
+# Use array to properly handle paths with spaces
+dirs_array=($DIRS_TO_BACKUP)
+if ! sudo tar -czvf "$BACKUP_FILE" "${dirs_array[@]}"; then
+  echo "❌ Backup failed with error code $?"
+  exit 1
+fi
+
+# Verify backup
+if [ -s "$BACKUP_FILE" ]; then
+  echo "✅ Backup successful! Size: $(du -h "$BACKUP_FILE" | cut -f1)"
+else
+  echo "❌ Backup created but file is empty!" >&2
+  exit 1
+fi
+
+# Reboot if requested
+if [ "$REBOOT_AFTER" = true ]; then
+  echo "🔄 Rebooting system..."
+  sudo reboot
+fi
+
+so what does time_interval means here
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to get a client's commands log while connecting to a server
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+can you explain third option? how to do it do it and where to execute it?
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+#!/bin/bash
+
+# Define the backup command
+backup_directory() {
+    # Check if required arguments are provided
+    if [ "$#" -ne 3 ]; then
+        echo "Usage: backup_directory input_dir output_dir time_interval_minutes"
+        return 1
+    fi
+
+    local input_dir="$1"
+    local output_dir="$2"
+    local interval_minutes="$3"
+    
+    # Convert minutes to seconds for sleep
+    local interval_seconds=$((interval_minutes * 60))
+    
+    # Create output directory if it doesn't exist
+    mkdir -p "$output_dir"
+    
+    while true; do
+        # Generate timestamp for the backup filename
+        local timestamp=$(date +"%Y%m%d_%H%M%S")
+        local backup_name="backup_${timestamp}.tar.gz"
+        
+        # Create the backup
+        tar -czf "${output_dir}/${backup_name}" "$input_dir"
+        
+        echo "Backup created at $(date): ${output_dir}/${backup_name}"
+        
+        # Wait for the specified interval
+        sleep "$interval_seconds"
+    done
+}
+
+# Example usage:
+# backup_directory /path/to/source /path/to/backups 60
+
+this isn't doing anything. i want to define a command that backups a directory for  a defined time interval. the command should get time_interval and output_dir as config. then saves the backup of the input folder every time_interval into output_dir
+
+

@@ -1,0 +1,66 @@
+how to change boot wait time in GRUB configuration of ubuntu in vmware\
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash init=/usr/local/bin/boot-script.sh"
+
+can i put python script here?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+i added a script but when i turn on the os i see this error and then it freezes like the second photo
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+i made the changes. now it doesn't show anything while booting
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+GNU nano 4.8                                         /usr/local/bin/boot-script.sh                                                   
+#!/bin/bash
+echo "Customssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss boot script executed" 
+# Add your custom commands here
+exec /sbin/init  # Important: hand over to normal init process
+
+
+can you echo a simple painting?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to change background and coloring and font of GRUB
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash init=/usr/local/bin/boot-script.sh"
+
+what does this do
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

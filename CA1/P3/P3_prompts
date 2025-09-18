@@ -1,0 +1,481 @@
+how to use psutil to see system health in time intervals?
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to save a python file as a systemd service so that it runs whenever the systems boots
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+does it restarts after disconnecting?
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan@erfan-virtual-machine:~/Desktop$ sudo nano /etc/systemd/system/system_health_monitor.service
+erfan@erfan-virtual-machine:~/Desktop$ sudo systemctl daemon-reload
+erfan@erfan-virtual-machine:~/Desktop$ sudo systemctl restart system_health_monitor
+erfan@erfan-virtual-machine:~/Desktop$ sudo systemctl enable system_health_monitor
+erfan@erfan-virtual-machine:~/Desktop$ sudo systemctl status system_health_monitor
+● system_health_monitor.service - System Health Monitoring Service
+     Loaded: loaded (/etc/systemd/system/system_health_monitor.service; enabled; vendor preset: enabled)
+     Active: activating (auto-restart) (Result: exit-code) since Fri 2025-04-11 07:09:39 +0330; 4s ago
+   Main PID: 36672 (code=exited, status=226/NAMESPACE)
+      Tasks: 0 (limit: 15701)
+     Memory: 0B (max: 100.0M)
+     CGroup: /system.slice/system_health_monitor.service
+
+آوریل 11 07:09:39 erfan-virtual-machine systemd[1]: system_health_monitor.service: Failed with result 'exit-code'.
+
+
+what's wrong
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+sudo systemctl daemon-reload
+sudo systemctl restart system_health_monitor
+sudo systemctl status system_health_monitor
+
+should i run these each time i make changes?
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to clear /var/log/system_monitor.log after rebooting
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-- Logs begin at Fri 2025-04-11 03:30:44 +0330, end at Fri 2025-04-11 20:48:37 +0330. --
+آوریل 11 20:48:15 erfan-virtual-machine systemd[1]: system_health_monitor.service: Scheduled restart job, restart counter is at 92.
+آوریل 11 20:48:15 erfan-virtual-machine systemd[1]: Stopped System Health Monitoring Service.
+آوریل 11 20:48:15 erfan-virtual-machine systemd[1]: Starting System Health Monitoring Service...
+آوریل 11 20:48:15 erfan-virtual-machine systemd[1]: Started System Health Monitoring Service.
+آوریل 11 20:48:15 erfan-virtual-machine python3[7111]: Traceback (most recent call last):
+آوریل 11 20:48:15 erfan-virtual-machine python3[7111]:   File "/home/erfan/Desktop/system_health_P3.py", line 8, in <module>
+آوریل 11 20:48:15 erfan-virtual-machine python3[7111]:     import matplotlib.pyplot as plt
+آوریل 11 20:48:15 erfan-virtual-machine python3[7111]: ModuleNotFoundError: No module named 'matplotlib'
+آوریل 11 20:48:15 erfan-virtual-machine systemd[1]: system_health_monitor.service: Main process exited, code=exited, status=1/FAILURE
+s
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+i ran python file separately to see the feh /tmp/system_status.png and it was okay. but now when i run systemd it is still the image that i got after running the python file
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan@erfan-virtual-machine:~/Desktop$ systemctl status remote_monitor.service
+● remote_monitor.service - Remote System Health Monitor
+     Loaded: loaded (/etc/systemd/system/remote_monitor.service; enabled; vendor preset: enabled)
+     Active: activating (auto-restart) (Result: exit-code) since Fri 2025-04-11 22:05:45 +0330; 1s ago
+    Process: 9688 ExecStartPre=/bin/mkdir -p /var/lib/remote_monitor (code=exited, status=1/FAILURE)
+    
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+    
+erfan@erfan-virtual-machine:~/Desktop$ feh /var/lib/remote_monitor/remote_system_status.png
+feh WARNING: /var/lib/remote_monitor/remote_system_status.png does not exist - skipping
+feh: No loadable images specified.
+See 'man feh' for detailed usage information
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+i have this code for system health:
+#!/usr/bin/env python3
+import psutil
+import time
+import argparse
+import logging
+import sys
+from pathlib import Path
+import matplotlib.pyplot as plt
+import numpy as np
+from datetime import datetime
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for systemd service
+
+# Global variables to store historical data
+history_length = 60  # Keep 60 data points (10 minutes at 10-second intervals)
+cpu_history = []
+mem_history = []
+disk_history = []
+timestamps = []
+
+def setup_logging():
+    """Configure logging to work with systemd's journal and a log file"""
+    logger = logging.getLogger()
+    logger.setLevel(logging.WARNING)  # Only log warnings and above
+    
+    # Systemd journal handler (stderr is captured by journald)
+    stderr_handler = logging.StreamHandler()
+    stderr_handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s'
+    ))
+    logger.addHandler(stderr_handler)
+    
+    # File handler (optional)
+    log_file = '/var/log/system_monitor.log'
+    try:
+        Path(log_file).parent.mkdir(exist_ok=True, mode=0o755)
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(levelname)s - %(message)s'
+        ))
+        logger.addHandler(file_handler)
+    except PermissionError:
+        logger.warning(f"Couldn't open log file {log_file}, using only journald logging")
+
+def get_top_processes(n=3):
+    """Get top n processes by CPU and memory usage"""
+    procs = []
+    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+        try:
+            procs.append(proc.info)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+    
+    # Sort by CPU and memory
+    top_cpu = sorted(procs, key=lambda p: p['cpu_percent'], reverse=True)[:n]
+    top_mem = sorted(procs, key=lambda p: p['memory_percent'], reverse=True)[:n]
+    
+    return top_cpu, top_mem
+
+def update_history(cpu, mem, disk):
+    """Update historical data"""
+    global cpu_history, mem_history, disk_history, timestamps
+    
+    now = datetime.now()
+    timestamps.append(now.strftime('%H:%M:%S'))
+    cpu_history.append(cpu)
+    mem_history.append(mem)
+    disk_history.append(disk)
+    
+    # Keep only the most recent data
+    if len(timestamps) > history_length:
+        timestamps = timestamps[-history_length:]
+        cpu_history = cpu_history[-history_length:]
+        mem_history = mem_history[-history_length:]
+        disk_history = disk_history[-history_length:]
+
+def generate_plot(output_file='/var/lib/system_monitor/system_health.png'):
+    """Generate a plot of system metrics"""
+    plt.figure(figsize=(12, 8))
+    
+    # Plot CPU, Memory, Disk usage
+    plt.subplot(2, 1, 1)
+    plt.plot(timestamps, cpu_history, label='CPU %', marker='o')
+    plt.plot(timestamps, mem_history, label='Memory %', marker='s')
+    plt.plot(timestamps, disk_history, label='Disk %', marker='^')
+    
+    plt.title('System Resource Usage Over Time')
+    plt.ylabel('Usage (%)')
+    plt.xticks(rotation=45)
+    plt.legend()
+    plt.grid(True)
+    
+    # Add horizontal lines for thresholds
+    args = parse_arguments()
+    plt.axhline(y=args.cpu, color='r', linestyle='--', alpha=0.3)
+    plt.axhline(y=args.mem, color='g', linestyle='--', alpha=0.3)
+    plt.axhline(y=args.disk, color='b', linestyle='--', alpha=0.3)
+    
+    # Add current process info
+    top_cpu, top_mem = get_top_processes(3)
+    
+    process_text = "Top CPU Processes:\n"
+    for proc in top_cpu:
+        process_text += f"{proc['name']}: {proc['cpu_percent']:.1f}%\n"
+    
+    process_text += "\nTop Memory Processes:\n"
+    for proc in top_mem:
+        process_text += f"{proc['name']}: {proc['memory_percent']:.1f}%\n"
+    
+    plt.subplot(2, 1, 2)
+    plt.text(0.1, 0.1, process_text, fontfamily='monospace', fontsize=10)
+    plt.axis('off')
+    
+    plt.tight_layout()
+    plt.savefig(output_file, dpi=100, bbox_inches='tight')
+    plt.close()
+    return output_file
+
+def monitor_system(cpu_threshold, mem_threshold, disk_threshold, interval=5):
+    """Monitor system health with thresholds"""
+    logger = logging.getLogger()
+    
+    try:
+        while True:
+            try:
+                # Get system metrics
+                cpu_percent = psutil.cpu_percent(interval=1)
+                cpu_count = psutil.cpu_count()
+                memory = psutil.virtual_memory()
+                disk = psutil.disk_usage('/')
+                net_io = psutil.net_io_counters()
+                top_cpu, top_mem = get_top_processes()
+                
+                # Update historical data
+                update_history(cpu_percent, memory.percent, disk.percent)
+                
+                # Generate and save plot
+                plot_file = generate_plot()
+                
+                # Print system stats
+                print(f"\n--- System Health at {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+                print(f"CPU Usage: {cpu_percent}% ({cpu_count} cores)")
+                print(f"Memory: {memory.percent}% used ({memory.used/1024/1024:.2f} MB / {memory.total/1024/1024:.2f} MB)")
+                print(f"Disk: {disk.percent}% used ({disk.used/1024/1024/1024:.2f} GB / {disk.total/1024/1024/1024:.2f} GB)")
+                print(f"Network: Sent {net_io.bytes_sent/1024/1024:.2f} MB | Received {net_io.bytes_recv/1024/1024:.2f} MB")
+                print(f"Status plot saved to: {plot_file}")
+                
+                # Print top processes
+                print("\nTop CPU processes:")
+                for proc in top_cpu:
+                    print(f"  {proc['name']} (PID:{proc['pid']}): {proc['cpu_percent']:.1f}% CPU")
+                
+                print("\nTop Memory processes:")
+                for proc in top_mem:
+                    print(f"  {proc['name']} (PID:{proc['pid']}): {proc['memory_percent']:.1f}% Memory")
+                
+                # Check thresholds and log warnings
+                if cpu_percent > cpu_threshold:
+                    msg = f"CPU usage exceeded threshold: {cpu_percent}% > {cpu_threshold}%"
+                    logger.warning(msg)
+                    print(f"\nWARNING: {msg}")
+                
+                if memory.percent > mem_threshold:
+                    msg = f"Memory usage exceeded threshold: {memory.percent}% > {mem_threshold}%"
+                    logger.warning(msg)
+                    print(f"\nWARNING: {msg}")
+                
+                if disk.percent > disk_threshold:
+                    msg = f"Disk usage exceeded threshold: {disk.percent}% > {disk_threshold}%"
+                    logger.warning(msg)
+                    print(f"\nWARNING: {msg}")
+                
+                time.sleep(interval)
+                
+            except psutil.Error as e:
+                logger.error(f"Error getting system metrics: {str(e)}")
+                print(f"ERROR: {str(e)}")
+                time.sleep(interval)  # Wait before retrying
+                
+    except KeyboardInterrupt:
+        print("\nMonitoring stopped.")
+        sys.exit(0)
+    except Exception as e:
+        logger.critical(f"Unexpected error: {str(e)}")
+        print(f"CRITICAL ERROR: {str(e)}")
+        sys.exit(1)
+
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='System Health Monitor with Threshold Alerts')
+    parser.add_argument('--cpu', type=float, default=80.0, 
+                       help='CPU usage threshold percentage (default: 80)')
+    parser.add_argument('--mem', type=float, default=80.0, 
+                       help='Memory usage threshold percentage (default: 80)')
+    parser.add_argument('--disk', type=float, default=80.0, 
+                       help='Disk usage threshold percentage (default: 80)')
+    parser.add_argument('--interval', type=int, default=5, 
+                       help='Monitoring interval in seconds (default: 5)')
+    parser.add_argument('--top', type=int, default=3,
+                       help='Number of top processes to show (default: 3)')
+    return parser.parse_args()
+
+def main():
+    args = parse_arguments()
+    setup_logging()
+    print(f"Starting system monitor with thresholds - CPU: {args.cpu}%, Memory: {args.mem}%, Disk: {args.disk}%")
+    print(f"Monitoring interval: {args.interval} seconds")
+    print(f"Showing top {args.top} processes by CPU/Memory usage")
+    print("Press Ctrl+C to stop monitoring\n")
+    
+    # Create initial empty plot
+    generate_plot()
+    
+    monitor_system(args.cpu, args.mem, args.disk, args.interval)
+
+if __name__ == "__main__":
+    main()
+
+
+this is executed with this bash script:
+[Unit]
+Description=System Health Monitoring Service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /home/erfan/Desktop/system_health_P3.py --cpu 80 --mem 85 --disk 80 --interval 60
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/bin/bash -c 'echo "" > /var/log/system_monitor.log'
+ExecStartPre=/bin/mkdir -p /var/lib/system_monitor
+ExecStartPre=/bin/chmod 777 /var/lib/system_monitor
+Environment="PYTHONUNBUFFERED=1"
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/erfan/.Xauthority"
+
+# Basic security
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+
+
+suppose this is a python code to connect ssh to a server:
+#!/usr/bin/env python3
+import paramiko
+import getpass
+import sys
+import socket
+import tty
+import termios
+import select
+
+def setup_terminal():
+    """Set up terminal for raw input"""
+    old_attrs = termios.tcgetattr(sys.stdin)
+    tty.setraw(sys.stdin.fileno())
+    return old_attrs
+
+def restore_terminal(old_attrs):
+    """Restore terminal settings"""
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_attrs)
+
+def interactive_shell(channel, commands_log):
+    """Handle the interactive shell session"""
+    old_attrs = setup_terminal()
+    command_buffer = ""  # Buffer to accumulate the current command
+    
+    try:
+        while True:
+            r, w, e = select.select([channel, sys.stdin], [], [])
+            
+            if channel in r:
+                try:
+                    data = channel.recv(1024)
+                    if not data:
+                        break
+                    sys.stdout.write(data.decode())
+                    sys.stdout.flush()
+                except socket.timeout:
+                    continue
+
+            if sys.stdin in r:
+                char = sys.stdin.read(1)
+                if char == '\x1d':  
+                    break
+                channel.send(char)
+              
+                if char == '\r': 
+                    if command_buffer.strip():  
+                        commands_log.append(command_buffer.strip())
+                    command_buffer = ""
+                elif char in ['\x7f', '\b']:  
+                    command_buffer = command_buffer[:-1]
+                elif char.isprintable():
+                    command_buffer += char
+
+    finally:
+        if command_buffer.strip(): 
+            commands_log.append(command_buffer.strip())
+        restore_terminal(old_attrs)
+        print("\nConnection closed.")
+
+def download_file(ftp_client, local_path, remote_path, commands_log):
+    """Download file from remote server to local machine"""
+    try:
+        ftp_client.get(remote_path, local_path)
+        print(f"File downloaded to {local_path}.")
+        commands_log.append(f"downloaded {remote_path} to {local_path}")
+    except Exception as e:
+        print(f"Error downloading file: {str(e)}")
+
+def upload_file(ftp_client, local_path, remote_path, commands_log):
+    """Upload file from local machine to remote server"""
+    try:
+        ftp_client.put(local_path, remote_path)
+        print(f"File uploaded to {remote_path}.")
+        commands_log.append(f"uploaded {local_path} to {remote_path}")
+    except Exception as e:
+        print(f"Error uploading file: {str(e)}")
+
+def main():
+    print("=== Python SSH Client ===")
+    host = input("Server IP/Hostname: ").strip()
+    user = input("Username: ").strip()
+    pwd = getpass.getpass("Password (leave empty for SSH key auth): ") or None
+
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    try:
+        client.connect(
+            hostname=host,
+            username=user,
+            password=pwd,
+            look_for_keys=True,
+            allow_agent=True,
+            timeout=10
+        )
+
+        print(f"\nConnected to {host}.\n")
+        ftp_client = client.open_sftp()
+        commands_log = list()
+
+        while True:
+            # Prompt for a command while in the interactive session
+            command = input("\nEnter command (Download/Upload)_file local_path remote_path, or 'shell' to enter interactive shell, or 'exit' to quit: ").strip()
+
+            if command.lower().startswith("download_file") or command.lower().startswith("upload_file"):
+                # Check for valid file command and perform action
+                parts = command.split()
+                if len(parts) == 3:
+                    operation, local_path, remote_path = parts
+                    if operation.lower() == "download_file":
+                        download_file(ftp_client, local_path, remote_path, commands_log)
+                    elif operation.lower() == "upload_file":
+                        upload_file(ftp_client, local_path, remote_path, commands_log)
+                else:
+                    print("Invalid command format. Please use: <Download/Upload>_file local_path remote_path")
+            elif command.lower() == "shell":
+                # Start an interactive shell session
+                channel = client.invoke_shell(term='xterm-256color')
+                channel.settimeout(1)
+                print("Entering interactive shell. Type 'exit' to leave.")
+                interactive_shell(channel, commands_log)
+            elif command.lower() == "exit":
+                print("commands log:\n")
+                for command in commands_log:
+                    print(command)
+                break
+            else:
+                print("Invalid command. Type 'Download_file', 'Upload_file', 'shell', or 'exit'.")
+
+        ftp_client.close()
+
+    except Exception as e:
+        print(f"\nError: {str(e)}")
+    finally:
+        client.close()
+
+if __name__ == "__main__":
+    main()
+
+
+but here i don't want to use download and upload. i want to use the system health. in the way that system health  python file and its bash script are in a client.  i want to connect to a server with python and as soon as i connect, it starts to run system health and save its warning logs and plot of health in the client. generate a code with combining two python codes that i gave to you that does this and runs with a script
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to run this. where should i enter ip and username and password of the server. i also want the bash script get arguments like this in the original script that i gave to you:
+
+ExecStart=/usr/bin/python3 /home/erfan/Desktop/system_health_P3.py --cpu 80 --mem 85 --disk 80 --interval 60
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+is this checking the health status of the server or client itself. 
+
+

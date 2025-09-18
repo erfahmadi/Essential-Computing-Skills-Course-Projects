@@ -1,0 +1,15 @@
+install mosh on a remote server without having sudo access on it
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan@erfan-virtual-machine:~$ ./configure --prefix=$HOME/local
+bash: ./configure: No such file or directory
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+protobuf
+ncurses
+openssl
+these are not available
+
+
