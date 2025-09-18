@@ -1,0 +1,4 @@
+hello_kernel:‬‬ ‫‪loading‬‬ ‫‪out-of-tree‬‬ ‫‪module‬‬ ‫‪taints‬‬ ‫‪kernel.‬‬
+‫‪hello_kernel:‬‬ ‫‪module‬‬ ‫‪verification‬‬ ‫‪failed:‬‬ ‫‪signature‬‬ ‫‪and/or‬‬ ‫‪required‬‬ ‫‪key‬‬ ‫‪missing‬‬ ‫‪-‬‬ ‫‪tainting‬‬ ‫‪kernel‬‬
+
+what is the reason of these two lines?

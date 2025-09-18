@@ -1,0 +1,1 @@
+cmd_/home/erfan/Desktop/ECS/CA2/P4/hello_kernel.ko := ld -r  -m elf_x86_64 -z noexecstack   --build-id=sha1  -T scripts/module.lds -o /home/erfan/Desktop/ECS/CA2/P4/hello_kernel.ko /home/erfan/Desktop/ECS/CA2/P4/hello_kernel.o /home/erfan/Desktop/ECS/CA2/P4/hello_kernel.mod.o;  true

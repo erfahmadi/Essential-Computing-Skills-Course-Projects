@@ -1,0 +1,33 @@
+FROM golang:1.24.4-alpine as builder
+RUN apk add --no-cache upx
+WORKDIR /src
+COPY <<EOF ./main.go
+package main
+
+import (
+  "fmt"
+  "log"
+  "net/http"
+)
+
+func handler(w http.ResponseWriter, r *http.Request) {
+  fmt.Fprintf(w, "Happy Birthday BIBI JOON!")
+}
+
+func main() {
+  http.HandleFunc("/", handler)
+  log.Println("Starting server on :80")
+  err := http.ListenAndServe(":80", nil)
+  if err != nil {
+    log.Fatal("Error starting server: ", err)
+  }
+}
+EOF
+
+RUN go build -ldflags="-s -w" -o /birthday ./main.go \
+ && upx --best --lzma /birthday
+FROM scratch
+COPY --from=builder /birthday /birthday
+ENTRYPOINT ["/birthday"]
+
+

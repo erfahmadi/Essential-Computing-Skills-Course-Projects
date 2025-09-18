@@ -1,0 +1,1 @@
+cmd_/home/erfan/Desktop/ECS/CA2/P4/Module.symvers := sed 's/\.ko$$/\.o/' /home/erfan/Desktop/ECS/CA2/P4/modules.order | scripts/mod/modpost -m -a  -o /home/erfan/Desktop/ECS/CA2/P4/Module.symvers -e -i Module.symvers   -T -

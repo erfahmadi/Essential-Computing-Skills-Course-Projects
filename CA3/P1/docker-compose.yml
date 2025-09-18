@@ -1,0 +1,72 @@
+services:
+
+  vote:
+    build: ./example-voting-app/vote
+    networks: [frontend, backend]
+    depends_on:
+      redis: { condition: service_started }
+    environment:
+      - REDIS=redis
+      - OPTION_A=boy
+      - OPTION_B=girl
+
+  result:
+    build: ./example-voting-app/result
+    networks: [frontend, backend]
+    depends_on:
+      - db
+    environment:
+      - DB=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/postgres
+      - OPTION_A=boy
+      - OPTION_B=girl
+
+  worker:
+    build: ./example-voting-app/worker
+    networks: [backend]
+    depends_on: [redis, db]
+    environment:
+      - REDIS=redis
+      - DB=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/postgres
+
+  redis:
+    image: redis:7-alpine
+    networks: [backend]
+
+  db:
+    image: postgres:15-alpine
+    networks: [backend]
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+
+  birthday:
+    build:
+      context: ./birthday
+      dockerfile: Dockerfile.birthday
+    networks: [frontend]
+
+  game2048:
+    build:
+      context: ./2048
+      dockerfile: Dockerfile.2048
+    networks: [frontend]
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - vote
+      - result
+      - birthday
+      - game2048
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+    ports: ["80:80"]
+    networks: [frontend]
+
+networks:
+  frontend:
+  backend:
+    internal: true
+

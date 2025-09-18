@@ -1,0 +1,28 @@
+
+how to analyze pcap file with wireshark in ubuntu?
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+A. SYN Flood (DoS Attack)
+Steps:
+
+Filter: tcp.flags.syn == 1 && tcp.flags.ack == 0.
+
+Go to Statistics → I/O Graph to see spikes in SYN packets.
+
+Sign of Attack: Thousands of SYNs from one IP with no follow-up ACKs.
+
+explain this more
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+what should i check and how to check?
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+Go to Statistics > Conversations and sort by number of packets. Look for a single source sending SYNs to many destinations or ports.
+
+how to do this
+
+--------------------------------------------------------------------------------------------------------------------------------------
+

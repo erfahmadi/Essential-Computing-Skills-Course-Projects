@@ -1,0 +1,139 @@
+Timer unit: 1e-06 s
+
+Total time: 1866.92 s
+File: ECS_CA4_P3.py
+Function: run_pipeline at line 8
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+     8                                           @profile
+     9                                           def run_pipeline():
+    10         1          2.0      2.0      0.0      TEXTUAL_COLUMNS = ["title", "tags", "description"]
+    11         1          1.0      1.0      0.0      EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+    12         1          1.0      1.0      0.0      EMBEDDING_DIM = 384
+    13         1          1.0      1.0      0.0      OUTPUT_DIR = "tmp/embeddings/"
+    14         1         26.0     26.0      0.0      os.makedirs(OUTPUT_DIR, exist_ok=True)
+    15                                           
+    16         1     396619.0 396619.0      0.0      us_df = pd.read_csv("USvideos.csv")
+    17         1       1264.0   1264.0      0.0      us_df["country"] = "US"
+    18                                           
+    19         1     486403.0 486403.0      0.0      ca_df = pd.read_csv("CAvideos.csv")
+    20         1        604.0    604.0      0.0      ca_df["country"] = "CA"
+    21                                           
+    22         1       8895.0   8895.0      0.0      df = pd.concat([us_df, ca_df], ignore_index=True).sample(1000, random_state=42).reset_index(drop=True)
+    23                                           
+    24         1         64.0     64.0      0.0      print(f"[EMBEDDING][INFO]: Loading model {EMBEDDING_MODEL}...")
+    25         1    4592619.0 4592619.0      0.2      model = SentenceTransformer(EMBEDDING_MODEL)
+    26                                           
+    27         1          4.0      4.0      0.0      def clean_tags(text):
+    28                                                   return " ".join(tag.replace('"', '') for tag in str(text).split('|'))
+    29                                           
+    30         4         11.0      2.8      0.0      for col in TEXTUAL_COLUMNS:
+    31         3        247.0     82.3      0.0          print(f"[EMBEDDING][INFO]: Embedding column '{col}'...")
+    32         3          6.0      2.0      0.0          if col == "tags":
+    33         1       8191.0   8191.0      0.0              text_data = df[col].fillna("").apply(clean_tags).tolist()
+    34                                                   else:
+    35         2       2449.0   1224.5      0.0              text_data = df[col].fillna("").astype(str).tolist()
+    36                                           
+    37         3   54372205.0 18124068.3      2.9          emb = model.encode(text_data, show_progress_bar=True, batch_size=32)
+    38         3       1770.0    590.0      0.0          emb_df = pd.DataFrame(emb, columns=[f"{col}_emb_{i}" for i in range(emb.shape[1])])
+    39         3       6551.0   2183.7      0.0          df = pd.concat([df.reset_index(drop=True), emb_df], axis=1)
+    40                                           
+    41         1          2.0      2.0      0.0      def count_tags_loop(tag_str):
+    42                                                   if pd.isna(tag_str):
+    43                                                       return 0
+    44                                                   count = 0
+    45                                                   for tag in tag_str.split("|"):
+    46                                                       if tag.strip() != "":
+    47                                                           count += 1
+    48                                                   return count
+    49                                           
+    50         1          1.0      1.0      0.0      tag_counts = []
+    51      1001       1453.0      1.5      0.0      for i in range(len(df)):
+    52      1000     898718.0    898.7      0.0          tag_counts.append(count_tags_loop(df.iloc[i]["tags"]))
+    53         1        893.0    893.0      0.0      df["tag_count"] = tag_counts
+    54                                           
+    55         1          2.0      2.0      0.0      publish_dates = []
+    56         1          1.0      1.0      0.0      publish_hours = []
+    57      1001       1101.0      1.1      0.0      for i in range(len(df)):
+    58      1000       1032.0      1.0      0.0          try:
+    59      1000     922827.0    922.8      0.0              dt = datetime.strptime(df.iloc[i]["publish_time"], "%Y-%m-%dT%H:%M:%S.%fZ")
+    60      1000       1482.0      1.5      0.0              publish_dates.append(dt)
+    61      1000       1331.0      1.3      0.0              publish_hours.append(dt.hour)
+    62                                                   except Exception:
+    63                                                       publish_dates.append(pd.NaT)
+    64                                                       publish_hours.append(np.nan)
+    65                                           
+    66         1       3991.0   3991.0      0.0      df["publish_time"] = publish_dates
+    67         1        571.0    571.0      0.0      df["publish_hour"] = publish_hours
+    68                                           
+    69         4          5.0      1.2      0.0      for col in TEXTUAL_COLUMNS:
+    70         3        157.0     52.3      0.0          if col in df.columns:
+    71         3       1153.0    384.3      0.0              del df[col]
+    72                                           
+    73         1          1.0      1.0      0.0      engagement_rates = []
+    74         1          1.0      1.0      0.0      ratios = []
+    75      1001       1126.0      1.1      0.0      for i in range(len(df)):
+    76      1000     893254.0    893.3      0.0          row = df.iloc[i]
+    77      1000      10914.0     10.9      0.0          views = row["views"]
+    78      1000       6724.0      6.7      0.0          likes = row["likes"]
+    79      1000       6212.0      6.2      0.0          dislikes = row["dislikes"]
+    80      1000       6211.0      6.2      0.0          comments = row["comment_count"]
+    81      1000       2003.0      2.0      0.0          engagement_rates.append((likes + dislikes + comments) / (views + 1))
+    82      1000       1449.0      1.4      0.0          ratios.append(likes / (dislikes + 1))
+    83         1        754.0    754.0      0.0      df["engagement_rate"] = engagement_rates
+    84         1        678.0    678.0      0.0      df["like_dislike_ratio"] = ratios
+    85                                           
+    86         1       1611.0   1611.0      0.0      unique_cats = sorted(df["category_id"].dropna().unique())
+    87         1          2.0      2.0      0.0      one_hot = []
+    88      1001       1207.0      1.2      0.0      for i in range(len(df)):
+    89      1000       1117.0      1.1      0.0          row = []
+    90     18000      27150.0      1.5      0.0          for cat in unique_cats:
+    91     17000   15600288.0    917.7      0.8              row.append(1 if df.iloc[i]["category_id"] == cat else 0)
+    92      1000       1406.0      1.4      0.0          one_hot.append(row)
+    93                                           
+    94         1       2863.0   2863.0      0.0      cat_df = pd.DataFrame(one_hot, columns=[f"cat_{int(c)}" for c in unique_cats])
+    95         1       3698.0   3698.0      0.0      df = pd.concat([df.reset_index(drop=True), cat_df], axis=1)
+    96         1       1473.0   1473.0      0.0      df = df.drop(columns=["category_id"])
+    97                                           
+    98         1          2.0      2.0      0.0      bool_cols = ["comments_disabled", "ratings_disabled", "video_error_or_removed"]
+    99         4          8.0      2.0      0.0      for col in bool_cols:
+   100         3       2061.0    687.0      0.0          df[col] = [int(val) for val in df[col]]
+   101         1       1352.0   1352.0      0.0      df = df.drop(columns=bool_cols)
+   102                                           
+   103         1          2.0      2.0      0.0      seen_rows = set()
+   104         1          1.0      1.0      0.0      deduped_rows = []
+   105      1001       1562.0      1.6      0.0      for i in range(len(df)):
+   106      1000     981842.0    981.8      0.1          row_tuple = tuple(df.iloc[i].values)
+   107      1000      19336.0     19.3      0.0          if row_tuple not in seen_rows:
+   108      1000      17629.0     17.6      0.0              seen_rows.add(row_tuple)
+   109      1000     953327.0    953.3      0.1              deduped_rows.append(df.iloc[i])
+   110         1     172910.0 172910.0      0.0      df = pd.DataFrame(deduped_rows).reset_index(drop=True)
+   111                                           
+   112         1          3.0      3.0      0.0      numeric_attributes = [
+   113                                                   "views", "publish_hour", "likes", "dislikes", "comment_count",
+   114                                                   "engagement_rate", "like_dislike_ratio", "tag_count"
+   115                                               ]
+   116         1        235.0    235.0      0.0      numeric_attributes += [col for col in df.columns if "_emb_" in col]
+   117                                           
+   118      1161       2563.0      2.2      0.0      for col in numeric_attributes:
+   119      1160       8043.0      6.9      0.0          transformed = []
+   120   1161160    1841835.0      1.6      0.1          for i in range(len(df)):
+   121   1160000 1730356167.0   1491.7     92.7              transformed.append(np.log1p(df.iloc[i][col]))
+   122      1160     659873.0    568.9      0.0          df[col] = transformed
+   123                                           
+   124         1         49.0     49.0      0.0      minmax_scaler = MinMaxScaler()
+   125         1      76337.0  76337.0      0.0      scaled_minmax = minmax_scaler.fit_transform(df[numeric_attributes])
+   126      1161       1980.0      1.7      0.0      for j, col in enumerate(numeric_attributes):
+   127   1161160    1270199.0      1.1      0.1          for i in range(len(df)):
+   128   1160000   25483031.0     22.0      1.4              df.at[i, col] = np.float32(scaled_minmax[i][j])
+   129                                           
+   130         1         10.0     10.0      0.0      standard_scaler = StandardScaler()
+   131         1      72600.0  72600.0      0.0      scaled_standard = standard_scaler.fit_transform(df[numeric_attributes])
+   132      1161       1930.0      1.7      0.0      for j, col in enumerate(numeric_attributes):
+   133   1161160    1268012.0      1.1      0.1          for i in range(len(df)):
+   134   1160000   25421565.0     21.9      1.4              df.at[i, col] = np.float32(scaled_standard[i][j])
+   135                                           
+   136         1      23007.0  23007.0      0.0      df = df.drop(columns=["likes", "dislikes"])
+   137         1        103.0    103.0      0.0      print("Preprocessing complete. Final shape:", df.shape)
+

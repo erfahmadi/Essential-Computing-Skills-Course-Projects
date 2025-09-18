@@ -1,0 +1,133 @@
+Line #    Mem usage    Increment   Line Contents
+================================================
+     8  651.629 MiB  651.629 MiB   @profile
+     9                             def run_pipeline():
+    10  651.629 MiB    0.000 MiB       TEXTUAL_COLUMNS = ["title", "tags", "description"]
+    11  651.629 MiB    0.000 MiB       EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+    12  651.629 MiB    0.000 MiB       EMBEDDING_DIM = 384
+    13  651.629 MiB    0.000 MiB       OUTPUT_DIR = "tmp/embeddings/"
+    14  651.629 MiB    0.000 MiB       os.makedirs(OUTPUT_DIR, exist_ok=True)
+    15                             
+    16  687.438 MiB   35.809 MiB       us_df = pd.read_csv("USvideos.csv")
+    17  687.562 MiB    0.125 MiB       us_df["country"] = "US"
+    18                             
+    19  730.297 MiB   42.734 MiB       ca_df = pd.read_csv("CAvideos.csv")
+    20  730.297 MiB    0.000 MiB       ca_df["country"] = "CA"
+    21                             
+    22  731.797 MiB    1.500 MiB       df = pd.concat([us_df, ca_df], ignore_index=True).sample(1000, random_state=42).reset_index(drop=True)
+    23                             
+    24  731.797 MiB    0.000 MiB       print(f"[EMBEDDING][INFO]: Loading model {EMBEDDING_MODEL}...")
+    25  756.902 MiB   25.105 MiB       model = SentenceTransformer(EMBEDDING_MODEL)
+    26                             
+    27  945.816 MiB    0.000 MiB       def clean_tags(text):
+    28  945.816 MiB    0.000 MiB           return " ".join(tag.replace('"', '') for tag in str(text).split('|'))
+    29                             
+    30 1001.566 MiB    0.000 MiB       for col in TEXTUAL_COLUMNS:
+    31  982.613 MiB    0.000 MiB           print(f"[EMBEDDING][INFO]: Embedding column '{col}'...")
+    32  982.613 MiB    0.000 MiB           if col == "tags":
+    33  945.816 MiB    0.000 MiB               text_data = df[col].fillna("").apply(clean_tags).tolist()
+    34                                     else:
+    35  982.738 MiB    0.125 MiB               text_data = df[col].fillna("").astype(str).tolist()
+    36                             
+    37 1001.566 MiB  244.539 MiB           emb = model.encode(text_data, show_progress_bar=True, batch_size=32)
+    38 1001.566 MiB    0.000 MiB           emb_df = pd.DataFrame(emb, columns=[f"{col}_emb_{i}" for i in range(emb.shape[1])])
+    39 1001.566 MiB    0.000 MiB           df = pd.concat([df.reset_index(drop=True), emb_df], axis=1)
+    40                             
+    41 1001.566 MiB    0.000 MiB       def count_tags_loop(tag_str):
+    42 1001.566 MiB    0.000 MiB           if pd.isna(tag_str):
+    43                                         return 0
+    44 1001.566 MiB    0.000 MiB           count = 0
+    45 1001.566 MiB    0.000 MiB           for tag in tag_str.split("|"):
+    46 1001.566 MiB    0.000 MiB               if tag.strip() != "":
+    47 1001.566 MiB    0.000 MiB                   count += 1
+    48 1001.566 MiB    0.000 MiB           return count
+    49                             
+    50 1001.566 MiB    0.000 MiB       tag_counts = []
+    51 1001.566 MiB    0.000 MiB       for i in range(len(df)):
+    52 1001.566 MiB    0.000 MiB           tag_counts.append(count_tags_loop(df.iloc[i]["tags"]))
+    53 1001.566 MiB    0.000 MiB       df["tag_count"] = tag_counts
+    54                             
+    55 1001.566 MiB    0.000 MiB       publish_dates = []
+    56 1001.566 MiB    0.000 MiB       publish_hours = []
+    57 1001.566 MiB    0.000 MiB       for i in range(len(df)):
+    58 1001.566 MiB    0.000 MiB           try:
+    59 1001.566 MiB    0.000 MiB               dt = datetime.strptime(df.iloc[i]["publish_time"], "%Y-%m-%dT%H:%M:%S.%fZ")
+    60 1001.566 MiB    0.000 MiB               publish_dates.append(dt)
+    61 1001.566 MiB    0.000 MiB               publish_hours.append(dt.hour)
+    62                                     except Exception:
+    63                                         publish_dates.append(pd.NaT)
+    64                                         publish_hours.append(np.nan)
+    65                             
+    66 1003.066 MiB    1.500 MiB       df["publish_time"] = publish_dates
+    67 1003.066 MiB    0.000 MiB       df["publish_hour"] = publish_hours
+    68                             
+    69 1003.191 MiB    0.000 MiB       for col in TEXTUAL_COLUMNS:
+    70 1003.191 MiB    0.000 MiB           if col in df.columns:
+    71 1003.191 MiB    0.125 MiB               del df[col]
+    72                             
+    73 1003.191 MiB    0.000 MiB       engagement_rates = []
+    74 1003.191 MiB    0.000 MiB       ratios = []
+    75 1003.316 MiB    0.000 MiB       for i in range(len(df)):
+    76 1003.316 MiB    0.125 MiB           row = df.iloc[i]
+    77 1003.316 MiB    0.000 MiB           views = row["views"]
+    78 1003.316 MiB    0.000 MiB           likes = row["likes"]
+    79 1003.316 MiB    0.000 MiB           dislikes = row["dislikes"]
+    80 1003.316 MiB    0.000 MiB           comments = row["comment_count"]
+    81 1003.316 MiB    0.000 MiB           engagement_rates.append((likes + dislikes + comments) / (views + 1))
+    82 1003.316 MiB    0.000 MiB           ratios.append(likes / (dislikes + 1))
+    83 1003.316 MiB    0.000 MiB       df["engagement_rate"] = engagement_rates
+    84 1003.316 MiB    0.000 MiB       df["like_dislike_ratio"] = ratios
+    85                             
+    86 1003.691 MiB    0.375 MiB       unique_cats = sorted(df["category_id"].dropna().unique())
+    87 1003.691 MiB    0.000 MiB       one_hot = []
+    88 1003.691 MiB    0.000 MiB       for i in range(len(df)):
+    89 1003.691 MiB    0.000 MiB           row = []
+    90 1003.691 MiB    0.000 MiB           for cat in unique_cats:
+    91 1003.691 MiB    0.000 MiB               row.append(1 if df.iloc[i]["category_id"] == cat else 0)
+    92 1003.691 MiB    0.000 MiB           one_hot.append(row)
+    93                             
+    94 1003.691 MiB    0.000 MiB       cat_df = pd.DataFrame(one_hot, columns=[f"cat_{int(c)}" for c in unique_cats])
+    95 1003.691 MiB    0.000 MiB       df = pd.concat([df.reset_index(drop=True), cat_df], axis=1)
+    96 1003.816 MiB    0.125 MiB       df = df.drop(columns=["category_id"])
+    97                             
+    98 1003.816 MiB    0.000 MiB       bool_cols = ["comments_disabled", "ratings_disabled", "video_error_or_removed"]
+    99 1003.816 MiB    0.000 MiB       for col in bool_cols:
+   100 1003.816 MiB    0.000 MiB           df[col] = [int(val) for val in df[col]]
+   101 1003.816 MiB    0.000 MiB       df = df.drop(columns=bool_cols)
+   102                             
+   103 1003.816 MiB    0.000 MiB       seen_rows = set()
+   104 1003.816 MiB    0.000 MiB       deduped_rows = []
+   105 1076.566 MiB    0.000 MiB       for i in range(len(df)):
+   106 1076.566 MiB   36.375 MiB           row_tuple = tuple(df.iloc[i].values)
+   107 1076.566 MiB    0.125 MiB           if row_tuple not in seen_rows:
+   108 1076.566 MiB    0.000 MiB               seen_rows.add(row_tuple)
+   109 1076.566 MiB   36.250 MiB               deduped_rows.append(df.iloc[i])
+   110 1077.316 MiB    0.750 MiB       df = pd.DataFrame(deduped_rows).reset_index(drop=True)
+   111                             
+   112 1077.316 MiB    0.000 MiB       numeric_attributes = [
+   113                                     "views", "publish_hour", "likes", "dislikes", "comment_count",
+   114                                     "engagement_rate", "like_dislike_ratio", "tag_count"
+   115                                 ]
+   116 1077.316 MiB    0.000 MiB       numeric_attributes += [col for col in df.columns if "_emb_" in col]
+   117                             
+   118 1078.566 MiB    0.000 MiB       for col in numeric_attributes:
+   119 1078.566 MiB    0.000 MiB           transformed = []
+   120 1078.566 MiB    0.000 MiB           for i in range(len(df)):
+   121 1078.566 MiB    1.125 MiB               transformed.append(np.log1p(df.iloc[i][col]))
+   122 1078.566 MiB    0.125 MiB           df[col] = transformed
+   123                             
+   124 1078.566 MiB    0.000 MiB       minmax_scaler = MinMaxScaler()
+   125 1080.191 MiB    1.625 MiB       scaled_minmax = minmax_scaler.fit_transform(df[numeric_attributes])
+   126 1080.316 MiB    0.000 MiB       for j, col in enumerate(numeric_attributes):
+   127 1080.316 MiB    0.000 MiB           for i in range(len(df)):
+   128 1080.316 MiB    0.125 MiB               df.at[i, col] = np.float32(scaled_minmax[i][j])
+   129                             
+   130 1080.316 MiB    0.000 MiB       standard_scaler = StandardScaler()
+   131 1080.316 MiB    0.000 MiB       scaled_standard = standard_scaler.fit_transform(df[numeric_attributes])
+   132 1080.316 MiB    0.000 MiB       for j, col in enumerate(numeric_attributes):
+   133 1080.316 MiB    0.000 MiB           for i in range(len(df)):
+   134 1080.316 MiB    0.000 MiB               df.at[i, col] = np.float32(scaled_standard[i][j])
+   135                             
+   136 1080.316 MiB    0.000 MiB       df = df.drop(columns=["likes", "dislikes"])
+   137 1080.316 MiB    0.000 MiB       print("Preprocessing complete. Final shape:", df.shape)
+

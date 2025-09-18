@@ -1,0 +1,132 @@
+where is ssh config file in ubunt
+
+---------------------------------------------------------------------------------------------------------------------
+
+how to exit vim
+
+---------------------------------------------------------------------------------------------------------------------
+
+Add a setting to Vim so that the search results are displayed highlighted.
+
+---------------------------------------------------------------------------------------------------------------------
+
+Enter a command to replace the desired word written in the entire file with new_word. This replacement must be case-insensitive, and for each change, your confirmation must be received first:
+
+--------------------------------------------------------------------------------------------------------------------
+
+ Go to line 15, go to the end of the line in insert mode, and write your student number.
+
+how to do this
+
+---------------------------------------------------------------------------------------------------------------------
+
+Select several lines and delete the comments. (First select the lines in Visual mode, then go to the beginning of the comments using #, and delete them.)
+
+
+---------------------------------------------------------------------------------------------------------------------
+
+what is the config for showing line numbers in vim?
+
+---------------------------------------------------------------------------------------------------------------------
+
+how to install vim-plugin
+
+---------------------------------------------------------------------------------------------------------------------
+
+when i run :PlugInstall in .vimrc, it says E492: Not an editor command: PlugInstall
+
+---------------------------------------------------------------------------------------------------------------------
+
+:scriptnames  " Lists loaded scripts; look for 'plug.vim'
+
+can't find it
+
+---------------------------------------------------------------------------------------------------------------------
+
+i can't see .vim/autoload after running :echo &runtimepath
+
+---------------------------------------------------------------------------------------------------------------------
+
+how vim-airline works
+
+---------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-

@@ -1,0 +1,711 @@
+how to  use cprofile use in this code: https://colab.research.google.com/drive/1QF1-FZ6Kxsx-NMg__s8yKTfluMQ6syFz?usp=sharing
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+look at the code:
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sentence_transformers import SentenceTransformer
+import os
+
+TEXTUAL_COLUMNS = ["title", "tags", "description"]
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+EMBEDDING_DIM = 384
+OUTPUT_DIR = "tmp/embeddings/"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+us_df = pd.read_csv("USvideos.csv")
+us_df["country"] = "US"
+
+ca_df = pd.read_csv("CAvideos.csv")
+ca_df["country"] = "CA"
+
+df = pd.concat([us_df, ca_df], ignore_index=True)
+
+print(f"[EMBEDDING][INFO]: Loading model {EMBEDDING_MODEL}...")
+model = SentenceTransformer(EMBEDDING_MODEL)
+
+def clean_tags(text):
+    return " ".join(tag.replace('"', '') for tag in str(text).split('|'))
+
+for col in TEXTUAL_COLUMNS:
+    print(f"[EMBEDDING][INFO]: Embedding column '{col}'...")
+    if col == "tags":
+        text_data = df[col].fillna("").apply(clean_tags).tolist()
+    else:
+        text_data = df[col].fillna("").astype(str).tolist()
+
+    emb = model.encode(text_data, show_progress_bar=True, batch_size=32)
+    emb_df = pd.DataFrame(emb, columns=[f"{col}_emb_{i}" for i in range(emb.shape[1])])
+    df = pd.concat([df.reset_index(drop=True), emb_df], axis=1)
+
+def count_tags_loop(tag_str):
+    if pd.isna(tag_str):
+        return 0
+    count = 0
+    for tag in tag_str.split("|"):
+        if tag.strip() != "":
+            count += 1
+    return count
+
+tag_counts = []
+for i in range(len(df)):
+    tag_counts.append(count_tags_loop(df.iloc[i]["tags"]))
+df["tag_count"] = tag_counts
+
+publish_dates = []
+publish_hours = []
+for i in range(len(df)):
+    try:
+        dt = datetime.strptime(df.iloc[i]["publish_time"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        publish_dates.append(dt)
+        publish_hours.append(dt.hour)
+    except Exception:
+        publish_dates.append(pd.NaT)
+        publish_hours.append(np.nan)
+
+df["publish_time"] = publish_dates
+df["publish_hour"] = publish_hours
+
+for col in TEXTUAL_COLUMNS:
+    if col in df.columns:
+        del df[col]
+
+engagement_rates = []
+ratios = []
+for i in range(len(df)):
+    row = df.iloc[i]
+    views = row["views"]
+    likes = row["likes"]
+    dislikes = row["dislikes"]
+    comments = row["comment_count"]
+    engagement_rates.append((likes + dislikes + comments) / (views + 1))
+    ratios.append(likes / (dislikes + 1))
+df["engagement_rate"] = engagement_rates
+df["like_dislike_ratio"] = ratios
+
+unique_cats = sorted(df["category_id"].dropna().unique())
+one_hot = []
+for i in range(len(df)):
+    row = []
+    for cat in unique_cats:
+        row.append(1 if df.iloc[i]["category_id"] == cat else 0)
+    one_hot.append(row)
+
+cat_df = pd.DataFrame(one_hot, columns=[f"cat_{int(c)}" for c in unique_cats])
+df = pd.concat([df.reset_index(drop=True), cat_df], axis=1)
+df = df.drop(columns=["category_id"])
+
+bool_cols = ["comments_disabled", "ratings_disabled", "video_error_or_removed"]
+for col in bool_cols:
+    df[col] = [int(val) for val in df[col]]
+df = df.drop(columns=bool_cols)
+
+seen_rows = set()
+deduped_rows = []
+for i in range(len(df)):
+    row_tuple = tuple(df.iloc[i].values)
+    if row_tuple not in seen_rows:
+        seen_rows.add(row_tuple)
+        deduped_rows.append(df.iloc[i])
+df = pd.DataFrame(deduped_rows).reset_index(drop=True)
+
+numeric_attributes = [
+    "views", "publish_hour", "likes", "dislikes", "comment_count",
+    "engagement_rate", "like_dislike_ratio", "tag_count"
+]
+numeric_attributes += [col for col in df.columns if "_emb_" in col]
+
+for col in numeric_attributes:
+    transformed = []
+    for i in range(len(df)):
+        transformed.append(np.log1p(df.iloc[i][col]))
+    df[col] = transformed
+
+minmax_scaler = MinMaxScaler()
+scaled_minmax = minmax_scaler.fit_transform(df[numeric_attributes])
+for j, col in enumerate(numeric_attributes):
+    for i in range(len(df)):
+        df.at[i, col] = scaled_minmax[i][j]
+
+standard_scaler = StandardScaler()
+scaled_standard = standard_scaler.fit_transform(df[numeric_attributes])
+for j, col in enumerate(numeric_attributes):
+    for i in range(len(df)):
+        df.at[i, col] = scaled_standard[i][j]
+
+df = df.drop(columns=["likes", "dislikes"])
+
+print("Preprocessing complete. Final shape:", df.shape)
+
+ i want to do the cprofile without wrapping the entire processing code into a new function
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+this is not .py file. the code i gave to you is a cell of ipynb file
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+i want to use line_profiler, memory_profiler, py-spy or perf too. is it possible to get all of these profilings with one time run of the code?
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+isn't it possible to use py-spy on colab?
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+!pip install -q kaggle
+
+
+from google.colab import files
+files.upload()
+
+!mkdir -p ~/.kaggle
+!cp kaggle.json ~/.kaggle/
+!chmod 600 ~/.kaggle/kaggle.json
+
+!kaggle datasets download -d datasnaek/youtube-new
+
+!unzip -q youtube-new.zip
+
+how to upload file when runnin locally
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+python -m cProfile -s tottime grep.py 1000 '^(import|\s*def)[^,]*$' *.py
+
+how to run a command like this for below code:
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sentence_transformers import SentenceTransformer
+import os
+
+TEXTUAL_COLUMNS = ["title", "tags", "description"]
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+EMBEDDING_DIM = 384
+OUTPUT_DIR = "tmp/embeddings/"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+us_df = pd.read_csv("USvideos.csv")
+us_df["country"] = "US"
+
+ca_df = pd.read_csv("CAvideos.csv")
+ca_df["country"] = "CA"
+
+df = pd.concat([us_df, ca_df], ignore_index=True)
+
+print(f"[EMBEDDING][INFO]: Loading model {EMBEDDING_MODEL}...")
+model = SentenceTransformer(EMBEDDING_MODEL)
+
+def clean_tags(text):
+    return " ".join(tag.replace('"', '') for tag in str(text).split('|'))
+
+for col in TEXTUAL_COLUMNS:
+    print(f"[EMBEDDING][INFO]: Embedding column '{col}'...")
+    if col == "tags":
+        text_data = df[col].fillna("").apply(clean_tags).tolist()
+    else:
+        text_data = df[col].fillna("").astype(str).tolist()
+
+    emb = model.encode(text_data, show_progress_bar=True, batch_size=32)
+    emb_df = pd.DataFrame(emb, columns=[f"{col}_emb_{i}" for i in range(emb.shape[1])])
+    df = pd.concat([df.reset_index(drop=True), emb_df], axis=1)
+
+def count_tags_loop(tag_str):
+    if pd.isna(tag_str):
+        return 0
+    count = 0
+    for tag in tag_str.split("|"):
+        if tag.strip() != "":
+            count += 1
+    return count
+
+tag_counts = []
+for i in range(len(df)):
+    tag_counts.append(count_tags_loop(df.iloc[i]["tags"]))
+df["tag_count"] = tag_counts
+
+publish_dates = []
+publish_hours = []
+for i in range(len(df)):
+    try:
+        dt = datetime.strptime(df.iloc[i]["publish_time"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        publish_dates.append(dt)
+        publish_hours.append(dt.hour)
+    except Exception:
+        publish_dates.append(pd.NaT)
+        publish_hours.append(np.nan)
+
+df["publish_time"] = publish_dates
+df["publish_hour"] = publish_hours
+
+for col in TEXTUAL_COLUMNS:
+    if col in df.columns:
+        del df[col]
+
+engagement_rates = []
+ratios = []
+for i in range(len(df)):
+    row = df.iloc[i]
+    views = row["views"]
+    likes = row["likes"]
+    dislikes = row["dislikes"]
+    comments = row["comment_count"]
+    engagement_rates.append((likes + dislikes + comments) / (views + 1))
+    ratios.append(likes / (dislikes + 1))
+df["engagement_rate"] = engagement_rates
+df["like_dislike_ratio"] = ratios
+
+unique_cats = sorted(df["category_id"].dropna().unique())
+one_hot = []
+for i in range(len(df)):
+    row = []
+    for cat in unique_cats:
+        row.append(1 if df.iloc[i]["category_id"] == cat else 0)
+    one_hot.append(row)
+
+cat_df = pd.DataFrame(one_hot, columns=[f"cat_{int(c)}" for c in unique_cats])
+df = pd.concat([df.reset_index(drop=True), cat_df], axis=1)
+df = df.drop(columns=["category_id"])
+
+bool_cols = ["comments_disabled", "ratings_disabled", "video_error_or_removed"]
+for col in bool_cols:
+    df[col] = [int(val) for val in df[col]]
+df = df.drop(columns=bool_cols)
+
+seen_rows = set()
+deduped_rows = []
+for i in range(len(df)):
+    row_tuple = tuple(df.iloc[i].values)
+    if row_tuple not in seen_rows:
+        seen_rows.add(row_tuple)
+        deduped_rows.append(df.iloc[i])
+df = pd.DataFrame(deduped_rows).reset_index(drop=True)
+
+numeric_attributes = [
+    "views", "publish_hour", "likes", "dislikes", "comment_count",
+    "engagement_rate", "like_dislike_ratio", "tag_count"
+]
+numeric_attributes += [col for col in df.columns if "_emb_" in col]
+
+for col in numeric_attributes:
+    transformed = []
+    for i in range(len(df)):
+        transformed.append(np.log1p(df.iloc[i][col]))
+    df[col] = transformed
+
+minmax_scaler = MinMaxScaler()
+scaled_minmax = minmax_scaler.fit_transform(df[numeric_attributes])
+for j, col in enumerate(numeric_attributes):
+    for i in range(len(df)):
+        df.at[i, col] = scaled_minmax[i][j]
+
+standard_scaler = StandardScaler()
+scaled_standard = standard_scaler.fit_transform(df[numeric_attributes])
+for j, col in enumerate(numeric_attributes):
+    for i in range(len(df)):
+        df.at[i, col] = scaled_standard[i][j]
+
+df = df.drop(columns=["likes", "dislikes"])
+
+print("Preprocessing complete. Final shape:", df.shape)
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+python -m cProfile -s tottime pipeline.py
+
+this command just runs the code and then shows the message 'killed'. solve the problem
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+...
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.351596956117751' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.5438753016186653' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.6686991098867056' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.26796209309482977' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.2741228314997737' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.5062507029960405' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.43342219287544625' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.2572807001246865' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.3753794270811542' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.6487941861439833' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.49006053516153697' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.45702612717017393' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.6060287803143527' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.7483810944774336' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.6765475595411462' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.19331454081723876' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.12627996994874063' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+ECS_CA4_P3.py:126: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value '0.6340559742666456' has dtype incompatible with float32, please explicitly cast to a compatible dtype first.
+  df.at[i, col] = scaled_minmax[i][j]
+Preprocessing complete. Final shape: (300, 1179)
+         713954320 function calls (712718550 primitive calls) in 318.260 seconds
+
+   Ordered by: internal time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+   354000  144.641    0.000  252.171    0.001 managers.py:958(fast_xs)
+418710859   59.719    0.000   65.309    0.000 blocks.py:1319(iget)
+203150736   15.269    0.000   15.269    0.000 blocks.py:268(mgr_locs)
+     1110   15.046    0.014   15.046    0.014 {built-in method torch._C._nn.linear}
+   354000   13.711    0.000   13.712    0.000 managers.py:984(<listcomp>)
+        1    4.993    4.993  318.271  318.271 ECS_CA4_P3.py:1(<module>)
+       21    3.283    0.156    3.283    0.156 {method 'read' of '_ssl._SSLSocket' objects}
+   355159    3.012    0.000    9.438    0.000 cast.py:1442(find_common_type)
+   355927    2.763    0.000    2.763    0.000 {built-in method fromkeys}
+      180    2.408    0.013    2.408    0.013 {built-in method torch._C._nn.scaled_dot_product_attention}
+14025709/14023271    1.976    0.000    2.958    0.000 {built-in method builtins.isinstance}
+   354007    1.795    0.000  259.630    0.001 frame.py:3988(_ixs)
+   353400    1.614    0.000    2.953    0.000 datetimes.py:547(_box_func)
+   697159    1.514    0.000    2.243    0.000 managers.py:1012(iget)
+   696000    1.459    0.000   13.078    0.000 indexing.py:2529(__setitem__)
+  1052632    1.186    0.000    1.318    0.000 base.py:3784(get_loc)
+   349755    1.178    0.000    1.236    0.000 cast.py:1401(np_find_common_type)
+   698312    1.174    0.000    1.519    0.000 cast.py:1778(np_can_hold_element)
+      180    1.152    0.006    1.152    0.006 {built-in method torch._C._nn.gelu}
+   696000    1.115    0.000   10.272    0.000 frame.py:4545(_set_value)
+   354039    1.049    0.000    1.561    0.000 generic.py:6255(__finalize__)
+   355152    1.041    0.000  263.789    0.001 indexing.py:1719(_getitem_axis)
+4980383/3887155    1.041    0.000    1.623    0.000 {built-in method builtins.len}
+   353405    0.932    0.000    0.932    0.000 {method 'view' of 'numpy.generic' objects}
+  1063242    0.915    0.000    0.925    0.000 generic.py:6320(__setattr__)
+   353404    0.848    0.000    0.883    0.000 utils.py:419(check_array_indexer)
+   353404    0.816    0.000    4.931    0.000 _mixins.py:278(__getitem__)
+   697152    0.770    0.000    7.521    0.000 managers.py:1298(column_setitem)
+   354300    0.767    0.000    3.436    0.000 series.py:1104(__getitem__)
+   361518    0.758    0.000    0.758    0.000 {built-in method numpy.empty}
+   696000    0.740    0.000    3.006    0.000 base.py:341(setitem_inplace)
+   355152    0.715    0.000  265.176    0.001 indexing.py:1176(__getitem__)
+   696000    0.703    0.000   14.430    0.000 indexing.py:2577(__setitem__)
+   356351    0.697    0.000    1.172    0.000 blocks.py:2789(new_block)
+        2    0.680    0.340    0.747    0.373 c_parser_wrapper.py:222(read)
+   355234    0.646    0.000    0.849    0.000 generic.py:278(__init__)
+745965/743482    0.646    0.000    1.784    0.000 {built-in method builtins.any}
+  1404000    0.608    0.000    0.901    0.000 managers.py:291(arrays)
+   353404    0.606    0.000    5.590    0.000 datetimelike.py:390(__getitem__)
+   696000    0.602    0.000    3.839    0.000 managers.py:2021(setitem_inplace)
+  2104935    0.586    0.000    0.820    0.000 common.py:372(apply_if_callable)
+  2088000    0.565    0.000    1.009    0.000 indexing.py:2531(<genexpr>)
+   354300    0.560    0.000    1.990    0.000 series.py:1229(_get_value)
+  1404000    0.498    0.000    1.399    0.000 base.py:332(array)
+   354007    0.492    0.000    2.376    0.000 frame.py:678(_constructor_sliced_from_mgr)
+   712917    0.489    0.000    0.738    0.000 indexing.py:2765(check_dict_or_set_indexers)
+  1053512    0.466    0.000    0.466    0.000 managers.py:1837(__init__)
+  2131365    0.453    0.000    0.743    0.000 cast.py:1472(<genexpr>)
+   696000    0.447    0.000    0.532    0.000 indexing.py:2562(_axes_are_unique)
+  1444805    0.436    0.000    0.568    0.000 generic.py:37(_check)
+  1444805    0.408    0.000    0.976    0.000 generic.py:42(_instancecheck)
+     4088    0.397    0.000    0.397    0.000 {built-in method marshal.loads}
+   358712    0.386    0.000    0.478    0.000 blocks.py:2747(get_block_type)
+   354000    0.363    0.000    0.408    0.000 range.py:1009(__getitem__)
+   355152    0.345    0.000    1.200    0.000 indexing.py:1667(_validate_integer)
+  186/185    0.345    0.002    0.349    0.002 {built-in method _imp.create_dynamic}
+   354006    0.342    0.000    9.810    0.000 base.py:378(interleaved_dtype)
+   354032    0.328    0.000    1.267    0.000 generic.py:339(_from_mgr)
+   358927    0.319    0.000    0.508    0.000 generic.py:586(_get_axis)
+  2120265    0.319    0.000    0.319    0.000 cast.py:1488(<genexpr>)
+  1058310    0.313    0.000    0.313    0.000 cast.py:1481(<genexpr>)
+     3696    0.299    0.000    0.627    0.000 import_utils.py:2309(fetch__all__)
+  1404000    0.293    0.000    0.293    0.000 managers.py:303(<listcomp>)
+   697152    0.286    0.000    0.389    0.000 range.py:408(get_loc)
+   355844    0.280    0.000    0.388    0.000 managers.py:2004(internal_values)
+      390    0.275    0.001    0.275    0.001 {built-in method torch.layer_norm}
+   359915    0.274    0.000    0.312    0.000 construction.py:481(ensure_wrapped_if_datetimelike)
+  2476184    0.266    0.000    0.266    0.000 {built-in method builtins.callable}
+2320165/2320058    0.260    0.000    0.313    0.000 {built-in method builtins.getattr}
+  1396633    0.252    0.000    0.252    0.000 __init__.py:42(warn_copy_on_write)
+   354039    0.249    0.000    0.249    0.000 flags.py:87(allows_duplicate_labels)
+736795/736792    0.245    0.000    0.593    0.000 {built-in method builtins.all}
+   698305    0.240    0.000    0.345    0.000 cast.py:921(_maybe_infer_dtype_type)
+   359632    0.239    0.000    0.285    0.000 construction.py:416(extract_array)
+   356309    0.237    0.000    1.162    0.000 common.py:97(is_bool_indexer)
+  2972139    0.235    0.000    0.235    0.000 {method 'startswith' of 'str' objects}
+  1405156    0.233    0.000    0.233    0.000 __init__.py:34(using_copy_on_write)
+   354011    0.228    0.000    0.687    0.000 base.py:74(__len__)
+   697176    0.227    0.000    0.292    0.000 frame.py:4628(_clear_item_cache)
+   353400    0.221    0.000    0.407    0.000 datetimes.py:578(tz)
+   354002    0.216    0.000    0.366    0.000 generic.py:4398(_set_is_copy)
+   355234    0.203    0.000    0.203    0.000 flags.py:51(__init__)
+   355844    0.201    0.000    0.589    0.000 series.py:831(_values)
+     4105    0.191    0.000    0.191    0.000 {method 'read' of '_io.BufferedReader' objects}
+   358959    0.188    0.000    0.188    0.000 generic.py:572(_get_axis_number)
+   7094/1    0.177    0.000  318.271  318.271 {built-in method builtins.exec}
+       30    0.168    0.006    0.168    0.006 {method 'encode_batch' of 'tokenizers.Tokenizer' objects}
+   355152    0.163    0.000    0.192    0.000 indexing.py:1165(_check_deprecated_callable_usage)
+ 1064/319    0.151    0.000    0.963    0.003 import_utils.py:2351(create_import_structure_from_path)
+   696000    0.148    0.000    0.148    0.000 indexing.py:611(at)
+
+
+i get lots of warnings (more than what i paste here) before getting the result for this command:
+python3 -m cProfile -s tottime ECS_CA4_P3.py | head -n 100
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+[media pointer="file-service://file-FkLJYbYr6yYRZ5RUobnfXV"]
+how to use line_profiler for the previous code
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+Preprocessing complete. Final shape: (1000, 1181)
+Wrote profile results to ECS_CA4_P3.py.lprof
+Timer unit: 1e-06 s
+
+
+how can i see the results inside .lprof file
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan@erfan-virtual-machine:~/Desktop/ECS/CA4/P3$ python3 -m line_profiler ECS_CA4_P3.py.lprof
+Timer unit: 1e-06 s
+
+erfan@erfan-virtual-machine:~/Desktop/ECS/CA4/P3$ 
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan@erfan-virtual-machine:~/Desktop/ECS/CA4/P3$ sudo apt install py-spy
+[sudo] password for erfan: 
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+E: Unable to locate package py-spy
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sentence_transformers import SentenceTransformer
+import os
+
+TEXTUAL_COLUMNS = ["title", "tags", "description"]
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+EMBEDDING_DIM = 384
+OUTPUT_DIR = "tmp/embeddings/"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+us_df = pd.read_csv("USvideos.csv")
+us_df["country"] = "US"
+
+ca_df = pd.read_csv("CAvideos.csv")
+ca_df["country"] = "CA"
+
+df = pd.concat([us_df, ca_df], ignore_index=True).sample(1000, random_state=42).reset_index(drop=True)
+
+print(f"[EMBEDDING][INFO]: Loading model {EMBEDDING_MODEL}...")
+model = SentenceTransformer(EMBEDDING_MODEL)
+
+def clean_tags(text):
+    return " ".join(tag.replace('"', '') for tag in str(text).split('|'))
+
+for col in TEXTUAL_COLUMNS:
+    print(f"[EMBEDDING][INFO]: Embedding column '{col}'...")
+    if col == "tags":
+        text_data = df[col].fillna("").apply(clean_tags).tolist()
+    else:
+        text_data = df[col].fillna("").astype(str).tolist()
+
+    emb = model.encode(text_data, show_progress_bar=True, batch_size=32)
+    emb_df = pd.DataFrame(emb, columns=[f"{col}_emb_{i}" for i in range(emb.shape[1])])
+    df = pd.concat([df.reset_index(drop=True), emb_df], axis=1)
+
+def count_tags_loop(tag_str):
+    if pd.isna(tag_str):
+        return 0
+    count = 0
+    for tag in tag_str.split("|"):
+        if tag.strip() != "":
+            count += 1
+    return count
+
+tag_counts = []
+for i in range(len(df)):
+    tag_counts.append(count_tags_loop(df.iloc[i]["tags"]))
+df["tag_count"] = tag_counts
+
+publish_dates = []
+publish_hours = []
+for i in range(len(df)):
+    try:
+        dt = datetime.strptime(df.iloc[i]["publish_time"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        publish_dates.append(dt)
+        publish_hours.append(dt.hour)
+    except Exception:
+        publish_dates.append(pd.NaT)
+        publish_hours.append(np.nan)
+
+df["publish_time"] = publish_dates
+df["publish_hour"] = publish_hours
+
+for col in TEXTUAL_COLUMNS:
+    if col in df.columns:
+        del df[col]
+
+engagement_rates = []
+ratios = []
+for i in range(len(df)):
+    row = df.iloc[i]
+    views = row["views"]
+    likes = row["likes"]
+    dislikes = row["dislikes"]
+    comments = row["comment_count"]
+    engagement_rates.append((likes + dislikes + comments) / (views + 1))
+    ratios.append(likes / (dislikes + 1))
+df["engagement_rate"] = engagement_rates
+df["like_dislike_ratio"] = ratios
+
+unique_cats = sorted(df["category_id"].dropna().unique())
+one_hot = []
+for i in range(len(df)):
+    row = []
+    for cat in unique_cats:
+        row.append(1 if df.iloc[i]["category_id"] == cat else 0)
+    one_hot.append(row)
+
+cat_df = pd.DataFrame(one_hot, columns=[f"cat_{int(c)}" for c in unique_cats])
+df = pd.concat([df.reset_index(drop=True), cat_df], axis=1)
+df = df.drop(columns=["category_id"])
+
+bool_cols = ["comments_disabled", "ratings_disabled", "video_error_or_removed"]
+for col in bool_cols:
+    df[col] = [int(val) for val in df[col]]
+df = df.drop(columns=bool_cols)
+
+seen_rows = set()
+deduped_rows = []
+for i in range(len(df)):
+    row_tuple = tuple(df.iloc[i].values)
+    if row_tuple not in seen_rows:
+        seen_rows.add(row_tuple)
+        deduped_rows.append(df.iloc[i])
+df = pd.DataFrame(deduped_rows).reset_index(drop=True)
+
+numeric_attributes = [
+    "views", "publish_hour", "likes", "dislikes", "comment_count",
+    "engagement_rate", "like_dislike_ratio", "tag_count"
+]
+numeric_attributes += [col for col in df.columns if "_emb_" in col]
+
+for col in numeric_attributes:
+    transformed = []
+    for i in range(len(df)):
+        transformed.append(np.log1p(df.iloc[i][col]))
+    df[col] = transformed
+
+minmax_scaler = MinMaxScaler()
+scaled_minmax = minmax_scaler.fit_transform(df[numeric_attributes])
+for j, col in enumerate(numeric_attributes):
+    for i in range(len(df)):
+        df.at[i, col] = scaled_minmax[i][j]
+
+standard_scaler = StandardScaler()
+scaled_standard = standard_scaler.fit_transform(df[numeric_attributes])
+for j, col in enumerate(numeric_attributes):
+    for i in range(len(df)):
+        df.at[i, col] = scaled_standard[i][j]
+
+df = df.drop(columns=["likes", "dislikes"])
+
+print("Preprocessing complete. Final shape:", df.shape)
+
+what can be changed to optimize this code?
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan@erfan-virtual-machine:~/Desktop/ECS/CA4/P3$ python3 -m cProfile -s tottime ECS_CA4_P3.py > cProfile_optimized_stats.txt
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████| 32/32 [00:05<00:00,  6.20it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████| 32/32 [00:18<00:00,  1.77it/s]
+Batches: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████| 32/32 [00:37<00:00,  1.18s/it]
+ECS_CA4_P3.py:75: FutureWarning: DataFrame.applymap has been deprecated. Use DataFrame.map instead.
+  df[numeric_attributes] = df[numeric_attributes].applymap(np.log1p)
+
+is this okay?
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+compare these methods for applying a condition to a column in a DataFrame:
+pandas apply
+pandas map
+numpy where
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-

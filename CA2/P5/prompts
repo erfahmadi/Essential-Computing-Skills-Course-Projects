@@ -1,0 +1,208 @@
+how to write a device driver for virtual lifo?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+tell me step by step what should i do?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan@erfan-virtual-machine:~/Desktop/ECS/CA2/P5$ make
+make -C /lib/modules/5.15.0-139-generic/build M=/home/erfan/Desktop/ECS/CA2/P5 modules
+make[1]: Entering directory '/usr/src/linux-headers-5.15.0-139-generic'
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0
+  You are using:           gcc (Ubuntu 10.5.0-1ubuntu1~20.04) 10.5.0
+make[2]: *** No rule to make target '/home/erfan/Desktop/ECS/CA2/P5/virtual_lifo.o', needed by '/home/erfan/Desktop/ECS/CA2/P5/modules.order'.  Stop.
+make[1]: *** [Makefile:1910: /home/erfan/Desktop/ECS/CA2/P5] Error 2
+make[1]: Leaving directory '/usr/src/linux-headers-5.15.0-139-generic'
+make: *** [Makefile:6: all] Error 2
+
+what is the problem?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan@erfan-virtual-machine:~/Desktop/ECS/CA2/P5$ make
+make -C /lib/modules/5.15.0-139-generic/build M=/home/erfan/Desktop/ECS/CA2/P5 modules
+make[1]: Entering directory '/usr/src/linux-headers-5.15.0-139-generic'
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0
+  You are using:           gcc (Ubuntu 10.5.0-1ubuntu1~20.04) 10.5.0
+  CC [M]  /home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.o
+gcc-9: error: unrecognized command line option ‘-mindirect-branch-cs-prefix’
+gcc-9: error: unrecognized command line option ‘-fno-allow-store-data-races’
+make[2]: *** [scripts/Makefile.build:297: /home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.o] Error 1
+make[1]: *** [Makefile:1910: /home/erfan/Desktop/ECS/CA2/P5] Error 2
+make[1]: Leaving directory '/usr/src/linux-headers-5.15.0-139-generic'
+make: *** [Makefile:7: all] Error 2
+
+what is the problem?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan@erfan-virtual-machine:~/Desktop/ECS/CA2/P5$ make
+make -C /lib/modules/5.15.0-139-generic/build M=/home/erfan/Desktop/ECS/CA2/P5 modules
+make[1]: Entering directory '/usr/src/linux-headers-5.15.0-139-generic'
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0
+  You are using:           gcc (Ubuntu 10.5.0-1ubuntu1~20.04) 10.5.0
+  CC [M]  /home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.o
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:28:17: error: field ‘cdev’ has incomplete type
+   28 |     struct cdev cdev;
+      |                 ^~~~
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c: In function ‘lifo_read’:
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:74:5: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+   74 |     size_t data_size = ksize(dev->stack[dev->top]);
+      |     ^~~~~~
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c: In function ‘lifo_init’:
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:163:5: error: implicit declaration of function ‘cdev_init’; did you mean ‘cred_init’? [-Werror=implicit-function-declaration]
+  163 |     cdev_init(&lifo_dev->cdev, &lifo_fops);
+      |     ^~~~~~~~~
+      |     cred_init
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:166:11: error: implicit declaration of function ‘cdev_add’; did you mean ‘d_add’? [-Werror=implicit-function-declaration]
+  166 |     ret = cdev_add(&lifo_dev->cdev, dev_no, 1);
+      |           ^~~~~~~~
+      |           d_add
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:194:5: error: implicit declaration of function ‘cdev_del’; did you mean ‘device_del’? [-Werror=implicit-function-declaration]
+  194 |     cdev_del(&lifo_dev->cdev);
+      |     ^~~~~~~~
+      |     device_del
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c: At top level:
+cc1: warning: unrecognized command line option ‘-Wno-zero-length-bounds’
+cc1: some warnings being treated as errors
+make[2]: *** [scripts/Makefile.build:297: /home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.o] Error 1
+make[1]: *** [Makefile:1910: /home/erfan/Desktop/ECS/CA2/P5] Error 2
+make[1]: Leaving directory '/usr/src/linux-headers-5.15.0-139-generic'
+make: *** [Makefile:10: all] Error 2
+
+what is the problem?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to write a makefile for this device driver?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+what are the commands to test this lifo driver?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan\@erfan-virtual-machine:\~/Desktop/ECS/CA2/P5\$ make devnodes
+Error: lifo\_read not found in /proc/devices
+
+what is the problem?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan\@erfan-virtual-machine:~~/Desktop/ECS/CA2/P5\$ make devnodes
+mknod: /dev/lifo\_read: File exists
+mknod: /dev/lifo\_write: File exists
+Device nodes created with major 237
+erfan\@erfan-virtual-machine:~~/Desktop/ECS/CA2/P5\$ ./writer /dev/lifo\_write "Hello"
+open: Permission denied
+erfan\@erfan-virtual-machine:~~/Desktop/ECS/CA2/P5\$ ./reader /dev/lifo\_read
+open: Permission denied
+erfan\@erfan-virtual-machine:~~/Desktop/ECS/CA2/P5\$
+
+what is the problem?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan\@erfan-virtual-machine:~~/Desktop/ECS/CA2/P5\$ ./writer /dev/lifo\_write "Hello"
+Wrote: Hello
+erfan\@erfan-virtual-machine:~~/Desktop/ECS/CA2/P5\$ ./writer /dev/lifo\_write "bye"
+Wrote: bye
+erfan\@erfan-virtual-machine:\~/Desktop/ECS/CA2/P5\$ ./reader /dev/lifo\_read
+Read: Hellobye
+
+why this is not lifo?
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+"Hello"
+then
+"bye"
+
+the read output for this must be eybolleH
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+"Hello"
+then
+"bye"
+
+the read output for this must be eybolleH
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+erfan\@erfan-virtual-machine:~~/Desktop/ECS/CA2/P5\$ make
+make -C /lib/modules/5.15.0-139-generic/build M=/home/erfan/Desktop/ECS/CA2/P5 modules
+make\[1]: Entering directory '/usr/src/linux-headers-5.15.0-139-generic'
+warning: the compiler differs from the one used to build the kernel
+The kernel was built by: gcc (Ubuntu 9.4.0-1ubuntu1~~20.04.2) 9.4.0
+You are using:           gcc (Ubuntu 10.5.0-1ubuntu1~~20.04) 10.5.0
+CC \[M]  /home/erfan/Desktop/ECS/CA2/P5/LIFO\_Driver.o
+/home/erfan/Desktop/ECS/CA2/P5/LIFO\_Driver.c: In function ‘lifo\_read’:
+/home/erfan/Desktop/ECS/CA2/P5/LIFO\_Driver.c:42:9: error: ‘for’ loop initial declarations are only allowed in C99 or C11 mode
+42 |         for (int i = 0; i < to\_copy; i++) {
+\|         ^\~\~
+/home/erfan/Desktop/ECS/CA2/P5/LIFO\_Driver.c:42:9: note: use option ‘-std=c99’, ‘-std=gnu99’, ‘-std=c11’ or ‘-std=gnu11’ to compile your code
+/home/erfan/Desktop/ECS/CA2/P5/LIFO\_Driver.c: In function ‘lifo\_init’:
+/home/erfan/Desktop/ECS/CA2/P5/LIFO\_Driver.c:115:5: warning: ISO C90 forbids mixed declarations and code \[-Wdeclaration-after-statement]
+115 |     struct cdev \*write\_cdev = cdev\_alloc();
+\|     ^\~\~\~\~\~
+make\[2]: \*\*\* \[scripts/Makefile.build:297: /home/erfan/Desktop/ECS/CA2/P5/LIFO\_Driver.o] Error 1
+make\[1]: \*\*\* \[Makefile:1910: /home/erfan/Desktop/ECS/CA2/P5] Error 2
+make\[1]: Leaving directory '/usr/src/linux-headers-5.15.0-139-generic'
+make: \*\*\* \[Makefile:14: kernel\_module] Error 2
+erfan\@erfan-virtual-machine:~~/Desktop/ECS/CA2/P5\$ make clean
+make -C /lib/modules/5.15.0-139-generic/build M=/home/erfan/Desktop/ECS/CA2/P5 clean
+make\[1]: Entering directory '/usr/src/linux-headers-5.15.0-139-generic'
+make\[1]: Leaving directory '/usr/src/linux-headers-5.15.0-139-generic'
+rm -f reader writer
+
+what is the problem?
+
+make -C /lib/modules/5.15.0-139-generic/build M=/home/erfan/Desktop/ECS/CA2/P5 modules
+make[1]: Entering directory '/usr/src/linux-headers-5.15.0-139-generic'
+warning: the compiler differs from the one used to build the kernel
+  The kernel was built by: gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0
+  You are using:           gcc (Ubuntu 10.5.0-1ubuntu1~20.04) 10.5.0
+  CC [M]  /home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.o
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c: In function ‘lifo_read’:
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:35:5: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+   35 |     int to_copy = min(count, (size_t)lifo_top);
+      |     ^~~
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:44:5: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+   44 |     int i;
+      |     ^~~
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:49:41: error: expected ‘)’ before ‘{’ token
+   49 |     if (copy_to_user(buf, temp, to_copy) {
+      |        ~                                ^~
+      |                                         )
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:59:1: error: expected expression before ‘}’ token
+   59 | }
+      | ^
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:26:13: warning: unused variable ‘ret’ [-Wunused-variable]
+   26 |     ssize_t ret = 0;
+      |             ^~~
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c: In function ‘lifo_init’:
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:131:5: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+  131 |     struct cdev *write_cdev = cdev_alloc();
+      |     ^~~~~~
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c: In function ‘lifo_read’:
+/home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.c:59:1: error: control reaches end of non-void function [-Werror=return-type]
+   59 | }
+      | ^
+cc1: some warnings being treated as errors
+make[2]: *** [scripts/Makefile.build:297: /home/erfan/Desktop/ECS/CA2/P5/LIFO_Driver.o] Error 1
+make[1]: *** [Makefile:1910: /home/erfan/Desktop/ECS/CA2/P5] Error 2
+make[1]: Leaving directory '/usr/src/linux-headers-5.15.0-139-generic'
+make: *** [Makefile:7: all] Error 2
+
+what is the problem 
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+how to bold a echo output in bash script?
+
